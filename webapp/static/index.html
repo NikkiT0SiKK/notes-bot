@@ -1,1 +1,150 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Мои Заметки</title>
+    <!-- Подключаем Tailwind CSS для красоты -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SDK Telegram -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body {
+            background-color: var(--tg-theme-bg-color, #121212);
+            color: var(--tg-theme-text-color, #ffffff);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+        .glass {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+<body class="p-4 pb-24">
+    
+    <header class="mb-6 flex justify-between items-center">
+        <h1 class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
+            ✨ Мои Заметки
+        </h1>
+    </header>
 
+    <!-- Список заметок -->
+    <div id="notes-container" class="space-y-3">
+        <!-- Сюда рендерятся карточки -->
+    </div>
+
+    <!-- Плавающая форма добавления -->
+    <div class="fixed bottom-0 left-0 w-full p-4 glass">
+        <form id="add-form" class="flex gap-2">
+            <input type="text" id="note-input" placeholder="Новая заметка... #тег" 
+                   class="flex-1 bg-gray-800 text-white px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 border border-gray-700" required>
+            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl font-bold transition-colors">
+                ➕
+            </button>
+        </form>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+
+        const initData = tg.initData;
+        
+        // Загрузка заметок
+        async function loadNotes() {
+            try {
+                const res = await fetch('/api/notes', {
+                    headers: { 'X-Telegram-Init-Data': initData }
+                });
+                const notes = await res.json();
+                renderNotes(notes);
+            } catch (e) {
+                console.error("Ошибка загрузки", e);
+            }
+        }
+
+        // Отрисовка
+        function renderNotes(notes) {
+            const container = document.getElementById('notes-container');
+            container.innerHTML = '';
+            
+            if (notes.length === 0) {
+                container.innerHTML = `<div class="text-center text-gray-500 mt-10">Пока нет заметок. Добавь первую!</div>`;
+                return;
+            }
+
+            notes.forEach(note => {
+                const div = document.createElement('div');
+                div.className = 'glass p-4 rounded-2xl relative group transition-all';
+                
+                const tagsHtml = note.tags.map(t => `<span class="text-xs bg-blue-900/50 text-blue-300 px-2 py-1 rounded-md mr-1">#${t}</span>`).join('');
+                const date = new Date(note.created_at).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+                div.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <p class="text-lg pr-8">${note.text}</p>
+                        <button onclick="deleteNote(${note.id})" class="absolute top-4 right-4 text-red-400 opacity-50 hover:opacity-100 transition-opacity">
+                            🗑
+                        </button>
+                    </div>
+                    <div class="mt-2 flex flex-wrap gap-1">
+                        ${tagsHtml}
+                    </div>
+                    <div class="mt-2 text-xs text-gray-500">${date}</div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        // Добавление
+        document.getElementById('add-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const input = document.getElementById('note-input');
+            const text = input.value;
+            
+            tg.MainButton.showProgress();
+            input.value = '';
+
+            try {
+                await fetch('/api/notes', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-Telegram-Init-Data': initData
+                    },
+                    body: JSON.stringify({ text: text })
+                });
+                tg.HapticFeedback.impactOccurred('light'); // Вибрация
+                await loadNotes();
+            } catch (e) {
+                console.error(e);
+            } finally {
+                tg.MainButton.hideProgress();
+            }
+        });
+
+        // Удаление
+        async function deleteNote(id) {
+            if (!confirm("Удалить заметку?")) return;
+            tg.HapticFeedback.impactOccurred('medium');
+            
+            try {
+                await fetch(`/api/notes/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'X-Telegram-Init-Data': initData }
+                });
+                await loadNotes();
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        // Инициализация
+        loadNotes();
+    </script>
+</body>
+</html>
