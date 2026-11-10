@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import uvicorn
+import os
 
 from aiogram import Bot, Dispatcher
 from aiogram.filters import CommandStart, Command
@@ -119,7 +120,8 @@ async def main() -> None:
     
     # 2. Запускаем FastAPI (веб-сервер) в фоне
     logging.info("Запуск веб-сервера на порту 8000...")
-    uvicorn_config = uvicorn.Config(fastapi_app, host="0.0.0.0", port=8000, log_level="warning")
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn_config = uvicorn.Config(fastapi_app, host="0.0.0.0", port=port, log_level="warning")
     server = uvicorn.Server(uvicorn_config)
     asyncio.create_task(server.serve())
     
