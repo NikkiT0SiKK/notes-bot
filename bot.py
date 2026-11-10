@@ -19,7 +19,10 @@ from keyboards.kbs import main_menu
 # Импортируем наше FastAPI приложение
 from webapp.api import app as fastapi_app
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 dp = Dispatcher()
 
 # Подключаем роутеры
@@ -109,7 +112,7 @@ async def reminder_worker(bot: Bot):
                 await mark_as_reminded(note_id, repeat_type)
                 
         except Exception as e:
-            logging.error(f"Ошибка в фоновом процессе: {e}")
+            logging.error(f"Ошибка в фоновом процессе напоминаний: {e}")
             
         await asyncio.sleep(30)
 
@@ -119,9 +122,16 @@ async def main() -> None:
     await init_db()
     
     # 2. Запускаем FastAPI (веб-сервер) в фоне
-    logging.info("Запуск веб-сервера на порту 8000...")
+    # Render автоматически передает нужный порт в переменную PORT
     port = int(os.environ.get("PORT", 8000))
-    uvicorn_config = uvicorn.Config(fastapi_app, host="0.0.0.0", port=port, log_level="warning")
+    logging.info(f"Запуск веб-сервера на порту {port}...")
+    
+    uvicorn_config = uvicorn.Config(
+        fastapi_app, 
+        host="0.0.0.0", 
+        port=port, 
+        log_level="warning"
+    )
     server = uvicorn.Server(uvicorn_config)
     asyncio.create_task(server.serve())
     
@@ -134,4 +144,7 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        logging.info("Бот остановлен.")
